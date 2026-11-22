@@ -12,10 +12,24 @@
 <body><div class="container"><h2>MEW STORE INVENTORY</h2><p>Barcode Scanner</p><div id="reader"></div><div id="status">Ready to scan</div><div id="result"></div><input id="manualBarcode" placeholder="Enter barcode manually"><button onclick="startScanner()">START CAMERA SCAN</button><button class="stop" onclick="stopScanner()">STOP CAMERA</button><button onclick="sendManual()">SEND BARCODE</button></div>
 <script>
 let scanner=null,busy=false;
-function getNonce(){const m=location.hash.match(/nonce=([^&]+)/);return m?decodeURIComponent(m[1]):'';}
+function getParams(){const p=new URLSearchParams(location.search);return {sid:p.get('sid')||'',secret:p.get('secret')||'',relay:p.get('relay')||''};}
 function normalizeBarcode(value){return String(value||'').trim().replace(/^\*(.*?)\*$/,'$1').trim();}
 function setStatus(t){document.getElementById('status').textContent=t;}
-function sendBarcode(value){const barcode=normalizeBarcode(value);if(!barcode)return;document.getElementById('manualBarcode').value=barcode;document.getElementById('result').textContent='Scanned: '+barcode;const nonce=getNonce();if(window.opener&&!window.opener.closed&&nonce){window.opener.postMessage({type:'MEW_BARCODE_SCANNED',barcode,nonce},'*');setStatus('Barcode sent to MEW app. Returning...');stopScanner().then(()=>setTimeout(()=>window.close(),500));}else{setStatus('Barcode ready: '+barcode+'. Open scanner from the MEW app to send it automatically.');stopScanner();}}
+function sendBarcode(value){
+ const barcode=normalizeBarcode(value);if(!barcode)return;
+ document.getElementById('manualBarcode').value=barcode;
+ document.getElementById('result').textContent='Scanned: '+barcode;
+ const cfg=getParams();
+ if(!cfg.sid||!cfg.secret||!cfg.relay){setStatus('Scanner was not opened from the MEW laptop QR code. Return to MEW and scan the QR again.');stopScanner();return;}
+ setStatus('Sending barcode securely to MEW laptop…');
+ const callback='mewScanCb_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+ const script=document.createElement('script');
+ const cleanup=()=>{try{delete window[callback];}catch(e){window[callback]=undefined;}script.remove();};
+ window[callback]=function(result){cleanup();if(result&&result.ok){setStatus('Barcode sent to MEW laptop. You can close this page.');stopScanner();}else{setStatus('Could not send barcode: '+((result&&result.error)||'Unknown error')+'. Please scan again.');}};
+ const url=new URL(cfg.relay);url.searchParams.set('action','scan');url.searchParams.set('sid',cfg.sid);url.searchParams.set('secret',cfg.secret);url.searchParams.set('barcode',barcode);url.searchParams.set('callback',callback);
+ script.onerror=()=>{cleanup();setStatus('Network error while sending. Check internet and scan again.');};
+ script.src=url.toString();document.body.appendChild(script);
+}
 async function startScanner(){if(busy)return;if(!window.isSecureContext||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){setStatus('Camera access is unavailable. Use HTTPS in a supported browser.');return;}if(!window.Html5Qrcode){setStatus('Scanner library could not load. Check internet.');return;}try{busy=true;setStatus('Starting camera. Please allow camera access...');scanner=new Html5Qrcode('reader');const formats=[Html5QrcodeSupportedFormats.CODE_39,Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.QR_CODE];await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:280,height:150},formatsToSupport:formats},decoded=>{if(!busy)return;busy=false;sendBarcode(decoded);},()=>{});setStatus('Camera active. Point it at the barcode.');}catch(e){busy=false;setStatus('Camera error: '+(e.message||e));await stopScanner();}}
 async function stopScanner(){const current=scanner;scanner=null;busy=false;if(current){try{if(current.isScanning)await current.stop();}catch(e){}try{current.clear();}catch(e){}}}
 function sendManual(){sendBarcode(document.getElementById('manualBarcode').value);}
