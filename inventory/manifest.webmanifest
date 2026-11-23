@@ -1,0 +1,11 @@
+{
+  "name": "MEW STORE INVENTORY SYSTEM",
+  "short_name": "MEW Inventory",
+  "description": "MEW Store Inventory Management System",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#101827",
+  "theme_color": "#101827"
+}
