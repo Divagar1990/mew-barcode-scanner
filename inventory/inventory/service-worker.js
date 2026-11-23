@@ -1,8 +1,7 @@
-const CACHE_NAME = "mew-inventory-pwa-v1";
+const CACHE_NAME = "mew-inventory-pwa-v2";
 
 const APP_FILES = [
   "./",
-  "./index.html",
   "./manifest.webmanifest"
 ];
 
@@ -17,7 +16,7 @@ self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
-        keys.filter(key => key !== CACHE_NAME)
+        keys.filter(key => key.startsWith("mew-inventory-pwa-") && key !== CACHE_NAME)
             .map(key => caches.delete(key))
       )
     )
